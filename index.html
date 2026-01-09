@@ -61,7 +61,7 @@ class TensorEngine {
         this.weights = tf.variable(tf.randomUniform([size, size, 2, this.actions], -0.01, 0.01));
         
         // Система истории
-        this.hDepth = 5;
+        this.hDepth = 1000;
         this.historyBuffer = tf.variable(tf.zeros([this.hDepth, this.actions]));
         this.historyWeights = tf.variable(tf.fill([this.hDepth, this.actions], -0.15));
     }
