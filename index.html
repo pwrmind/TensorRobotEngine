@@ -2,105 +2,85 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Tensor AI Robot 2026 - Final Fixed</title>
+    <title>XAI Robot 2026: Final Stable</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #121212; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        canvas { border: 2px solid #333; background: #000; box-shadow: 0 0 20px rgba(0,255,204,0.1); }
-        .container { display: flex; gap: 30px; margin-top: 20px; flex-wrap: wrap; justify-content: center; }
-        .debug-panel { display: flex; flex-direction: column; gap: 15px; width: 320px; }
-        .heatmap-container { display: flex; gap: 15px; }
-        .heatmap-box { text-align: center; font-size: 11px; background: #1e1e1e; padding: 10px; border-radius: 8px; }
-        .stat { background: #1e1e1e; padding: 15px; border-radius: 8px; border-left: 4px solid #00ffcc; line-height: 1.6; }
-        h2 { color: #00ffcc; text-transform: uppercase; letter-spacing: 2px; }
-        b { color: #00ffcc; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0b0d11; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .container { display: flex; gap: 30px; margin-top: 15px; justify-content: center; flex-wrap: wrap; }
+        canvas { border: 2px solid #2c3e50; background: #000; border-radius: 4px; }
+        .debug-panel { display: flex; flex-direction: column; gap: 15px; width: 340px; }
+        .stat { background: #161b22; padding: 15px; border-radius: 8px; border-left: 5px solid #00e676; line-height: 1.6; }
+        .heatmap-container { display: flex; gap: 15px; margin-top: 10px; }
+        .heatmap-box { text-align: center; font-size: 11px; background: #161b22; padding: 10px; border-radius: 6px; }
+        h2 { color: #00e676; text-transform: uppercase; letter-spacing: 2px; }
     </style>
 </head>
 <body>
 
-    <h2>Tensor Engine v2026</h2>
+    <h2>XAI Robot: Pathfinding Master</h2>
     
     <div class="container">
-        <!-- Основная арена -->
         <canvas id="gameCanvas" width="400" height="400"></canvas>
-
         <div class="debug-panel">
             <div class="stat">
-                <b>Статус:</b> <span id="status">Загрузка нейромодулей...</span><br>
-                <b>Шаг цикла:</b> <span id="stepCount">0</span><br>
-                <b>Reward:</b> <span id="lastReward">0</span><br>
-                <b>Груз:</b> <span id="cargoStatus">Нет</span>
+                <b>Статус:</b> <span id="status">Запуск...</span><br>
+                <b>Шаг:</b> <span id="stepCountDisplay">0</span> | <b>Награда:</b> <span id="lastReward">0</span><br>
+                <b>Координаты:</b> <span id="coords">0, 0</span>
             </div>
-            
             <div class="heatmap-container">
                 <div class="heatmap-box">
                     <canvas id="mapForward" width="100" height="100"></canvas>
-                    <div style="margin-top:5px">Q: Вперед</div>
+                    <div style="margin-top:5px; color:#00e676">Q: Вперед</div>
                 </div>
                 <div class="heatmap-box">
                     <canvas id="mapTurn" width="100" height="100"></canvas>
-                    <div style="margin-top:5px">Q: Поворот</div>
+                    <div style="margin-top:5px; color:#ffeb3b">Q: Поворот</div>
                 </div>
             </div>
-            <p style="font-size: 0.8em; color: #777;">Интерпретация: бирюзовые зоны на картах Q — это области, которые робот считает наиболее выгодными для данных действий.</p>
+            <p style="font-size: 0.8em; color: #8b949e;">Если робот крутится, подождите 10-20 шагов: штраф истории (карта справа) потемнеет и заставит его сдвинуться.</p>
         </div>
     </div>
 
 <script>
-/**
- * КЛАСС ТЕНЗОРНОГО ОБУЧЕНИЯ
- */
 class TensorEngine {
     constructor(size) {
         this.size = size;
-        this.actions = 2; // 0: Прямо, 1: Поворот
-        this.gamma = 0.95;
-        this.lr = 0.25;
+        this.actions = 2;
+        this.gamma = 0.98; // Увеличена значимость будущего
+        this.lr = 0.5;    // Ускорена скорость обучения
 
-        // Инициализация весов [X, Y, Cargo, Action]
-        this.weights = tf.variable(tf.randomUniform([size, size, 2, this.actions], -0.01, 0.01));
+        this.weights = tf.variable(tf.randomUniform([size, size, 2, this.actions], 0.01, 0.1));
         
-        // Система истории
-        this.hDepth = 1000;
+        this.hDepth = 100; // Углублена память
         this.historyBuffer = tf.variable(tf.zeros([this.hDepth, this.actions]));
-        this.historyWeights = tf.variable(tf.fill([this.hDepth, this.actions], -0.15));
+        this.historyWeights = tf.variable(tf.fill([this.hDepth, this.actions], -2.5)); // Жесткое подавление циклов
     }
 
-    predict(x, y, hasLoad) {
+    predict(y, x, hasLoad) {
         return tf.tidy(() => {
-            // Извлечение пространственных данных
-            const spatialQ = this.weights.slice([x, y, hasLoad, 0], [1, 1, 1, this.actions]).reshape([this.actions]);
-            
-            // Влияние истории (штраф за повторы)
+            const spatialQ = this.weights.slice([y, x, hasLoad, 0], [1, 1, 1, this.actions]).reshape([this.actions]);
             const histPenalty = this.historyBuffer.mul(this.historyWeights).sum(0);
             const finalQ = spatialQ.add(histPenalty);
             
-            // Epsilon-greedy (исследование)
-            if (Math.random() < 0.12) return Math.floor(Math.random() * this.actions);
-            
+            // Повышен Epsilon для борьбы с застреванием
+            if (Math.random() < 0.15) return Math.floor(Math.random() * this.actions);
             return finalQ.argMax().dataSync()[0];
         });
     }
 
     async learn(s, a, r, nextS) {
         tf.tidy(() => {
-            // 1. Предсказание будущей награды
-            const nextQ = this.weights.slice([nextS.x, nextS.y, nextS.hasLoad, 0], [1, 1, 1, this.actions]).max();
+            const nextQ = this.weights.slice([nextS.y, nextS.x, nextS.hasLoad, 0], [1, 1, 1, this.actions]).max();
             const target = r + this.gamma * nextQ.dataSync()[0];
+            const currentQ = this.weights.slice([s.y, s.x, s.hasLoad, a], [1, 1, 1, 1]).dataSync()[0];
             
-            // 2. Ошибка текущего предсказания
-            const currentQ = this.weights.slice([s.x, s.y, s.hasLoad, a], [1, 1, 1, 1]).dataSync()[0];
             const error = target - currentQ;
-
-            // 3. Обновление через tf.scatterND (исправлено)
             const updateTensor = tf.tensor1d([error * this.lr]);
-            const indices = tf.tensor2d([[s.x, s.y, s.hasLoad, a]], [1, 4], 'int32');
+            const indices = tf.tensor2d([[s.y, s.x, s.hasLoad, a]], [1, 4], 'int32');
             
-            // Генерируем дельту и прибавляем к весам
             const deltaWeights = tf.scatterND(indices, updateTensor, this.weights.shape);
             this.weights.assign(this.weights.add(deltaWeights));
 
-            // 4. Сдвиг истории
             const actionOH = tf.oneHot(a, this.actions).cast('float32').reshape([1, this.actions]);
             const oldHistory = this.historyBuffer.slice([1, 0], [this.hDepth - 1, this.actions]);
             this.historyBuffer.assign(tf.concat([oldHistory, actionOH], 0));
@@ -108,65 +88,42 @@ class TensorEngine {
     }
 }
 
-/**
- * КОНФИГУРАЦИЯ МИРА
- */
 const SIZE = 10;
 const CELL = 40;
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 let engine;
-
-let robot = { x: 0, y: 0, dir: 1, hasLoad: 0 }; // dir: 0:U, 1:R, 2:D, 3:L
-const obstacles = [[2,2],[2,3],[2,4],[5,5],[5,6],[5,7],[7,2],[8,2]];
-let steps = 0;
+let robot = { x: 0, y: 0, dir: 1, hasLoad: 0 }; 
+const obstacles = [[3,3], [3,4], [3,5], [6,6], [6,7], [6,8]];
+let totalSteps = 0;
 
 async function start() {
-    // Инициализация WebGL/WebGPU
-    try {
-        await tf.setBackend('webgl'); // WebGL наиболее стабилен для визуализации в 2026
-        await tf.ready();
-    } catch(e) { console.error("TF Backend Error", e); }
-
+    await tf.setBackend('webgl');
     engine = new TensorEngine(SIZE);
-    document.getElementById('status').innerText = "Поиск пути...";
-    loop();
+    document.getElementById('status').innerText = "В пути...";
+    gameStep();
 }
 
-function draw() {
-    ctx.fillStyle = "#0a0a0a";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Сетка
-    ctx.strokeStyle = "#222";
-    ctx.lineWidth = 1;
+function drawGame() {
+    ctx.fillStyle = "#0d1117";
+    ctx.fillRect(0, 0, 400, 400);
+    ctx.strokeStyle = "#21262d";
     for(let i=0; i<=SIZE; i++) {
         ctx.beginPath(); ctx.moveTo(i*CELL, 0); ctx.lineTo(i*CELL, 400); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, i*CELL); ctx.lineTo(400, i*CELL); ctx.stroke();
     }
-
-    // Препятствия
-    ctx.fillStyle = "#ff3366";
-    obstacles.forEach(([ox, oy]) => {
-        ctx.fillRect(ox*CELL+4, oy*CELL+4, CELL-8, CELL-8);
-    });
-
-    // Цели
+    ctx.fillStyle = "#f85149";
+    obstacles.forEach(([ox, oy]) => ctx.fillRect(ox*CELL+4, oy*CELL+4, CELL-8, CELL-8));
     ctx.globalAlpha = 0.2;
-    ctx.fillStyle = "#00ffcc"; ctx.fillRect(0, 0, CELL, CELL); // База
-    ctx.fillStyle = "#ffcc00"; ctx.fillRect(9*CELL, 9*CELL, CELL, CELL); // Груз
+    ctx.fillStyle = "#39d353"; ctx.fillRect(0, 0, CELL, CELL);
+    ctx.fillStyle = "#e3b341"; ctx.fillRect(9*CELL, 9*CELL, CELL, CELL);
     ctx.globalAlpha = 1.0;
-
-    // Робот (Треугольник)
     ctx.save();
     ctx.translate(robot.x*CELL + CELL/2, robot.y*CELL + CELL/2);
     ctx.rotate(robot.dir * Math.PI/2);
-    ctx.fillStyle = robot.hasLoad ? "#ffcc00" : "#00ffcc";
-    ctx.beginPath();
-    ctx.moveTo(0, -14); ctx.lineTo(12, 10); ctx.lineTo(-12, 10);
-    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = robot.hasLoad ? "#e3b341" : "#39d353";
+    ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(12, 10); ctx.lineTo(-12, 10); ctx.fill();
     ctx.restore();
-
     renderHeatmaps();
 }
 
@@ -174,69 +131,59 @@ async function renderHeatmaps() {
     for (let a = 0; a < 2; a++) {
         const data = await tf.tidy(() => {
             const t = engine.weights.slice([0, 0, robot.hasLoad, a], [SIZE, SIZE, 1, 1]).reshape([SIZE, SIZE]);
-            const min = t.min();
-            const max = t.max();
-            const range = max.sub(min).add(0.000001);
-            return t.sub(min).div(range).dataSync();
+            const min = t.min(); const max = t.max();
+            return t.sub(min).div(max.sub(min).add(0.0001)).dataSync();
         });
-
-        const hCanvas = document.getElementById(a === 0 ? 'mapForward' : 'mapTurn');
-        const hCtx = hCanvas.getContext('2d');
-        
-        data.forEach((v, i) => {
-            const x = i % SIZE; const y = Math.floor(i / SIZE);
-            const intensity = Math.floor(v * 255);
-            hCtx.fillStyle = `rgb(0, ${intensity}, ${intensity * 0.8})`;
-            hCtx.fillRect(x*10, y*10, 10, 10);
-        });
+        const hCtx = document.getElementById(a === 0 ? 'mapForward' : 'mapTurn').getContext('2d');
+        for (let y = 0; y < SIZE; y++) {
+            for (let x = 0; x < SIZE; x++) {
+                const intensity = Math.floor(data[y * SIZE + x] * 255);
+                hCtx.fillStyle = `rgb(0, ${Math.floor(intensity/1.5)}, ${intensity})`;
+                hCtx.fillRect(x * 10, y * 10, 10, 10);
+            }
+        }
     }
 }
 
-async function loop() {
+async function gameStep() {
     const s = { ...robot };
-    const action = engine.predict(robot.x, robot.y, robot.hasLoad);
-    
-    let reward = -0.1; // Штраф за движение
-    
-    if (action === 0) { // Движение прямо
+    const action = engine.predict(robot.y, robot.x, robot.hasLoad);
+    let reward = -0.05; // Крошечный штраф за время
+
+    if (action === 0) { // Вперед
         let nx = robot.x + (robot.dir === 1 ? 1 : robot.dir === 3 ? -1 : 0);
         let ny = robot.y + (robot.dir === 2 ? 1 : robot.dir === 0 ? -1 : 0);
-        
-        const hitObstacle = obstacles.some(o => o[0] === nx && o[1] === ny);
-        const hitWall = nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE;
+        const isObs = obstacles.some(([ox, oy]) => ox === nx && oy === ny);
+        const isWall = nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE;
 
-        if (!hitObstacle && !hitWall) {
+        if (!isObs && !isWall) {
             robot.x = nx; robot.y = ny;
-            reward = 0.1; 
+            reward = 1.5; // Большая награда за движение
         } else {
-            reward = -2.5; // Удар
+            reward = -3.0; // Умеренный штраф за препятствие
         }
     } else { // Поворот
         robot.dir = (robot.dir + 1) % 4;
-        reward = -0.3;
+        reward = -0.5; // Штраф за поворот
+        
+        // Маленький бонус за взгляд в сторону цели (Hints)
+        if (!robot.hasLoad && (robot.dir === 1 || robot.dir === 2)) reward += 0.2;
+        if (robot.hasLoad && (robot.dir === 0 || robot.dir === 3)) reward += 0.2;
     }
 
-    // Логика груза
     if (robot.x === 9 && robot.y === 9 && !robot.hasLoad) {
-        robot.hasLoad = 1; reward = 40;
-        document.getElementById('status').innerText = "Груз взят! Домой...";
-        document.getElementById('cargoStatus').innerText = "Есть";
+        robot.hasLoad = 1; reward = 20;
     } else if (robot.x === 0 && robot.y === 0 && robot.hasLoad) {
-        robot.hasLoad = 0; reward = 40;
-        document.getElementById('status').innerText = "Доставлено! За новым...";
-        document.getElementById('cargoStatus').innerText = "Нет";
+        robot.hasLoad = 0; reward = 20;
     }
 
     await engine.learn(s, action, reward, { ...robot });
-    
-    steps++;
-    document.getElementById('stepCount').innerText = steps;
+    document.getElementById('stepCountDisplay').innerText = ++totalSteps;
     document.getElementById('lastReward').innerText = reward.toFixed(1);
-    
-    draw();
-    setTimeout(loop, 40); // Скорость симуляции
+    document.getElementById('coords').innerText = `${robot.x}, ${robot.y}`;
+    drawGame();
+    setTimeout(gameStep, 40); 
 }
-
 start();
 </script>
 </body>
