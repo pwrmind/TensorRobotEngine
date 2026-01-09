@@ -2,58 +2,66 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>XAI Robot 2026: Final Stable</title>
+    <title>Multi-Agent XAI Tensors 2026</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0b0d11; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        .container { display: flex; gap: 30px; margin-top: 15px; justify-content: center; flex-wrap: wrap; }
-        canvas { border: 2px solid #2c3e50; background: #000; border-radius: 4px; }
-        .debug-panel { display: flex; flex-direction: column; gap: 15px; width: 340px; }
-        .stat { background: #161b22; padding: 15px; border-radius: 8px; border-left: 5px solid #00e676; line-height: 1.6; }
-        .heatmap-container { display: flex; gap: 15px; margin-top: 10px; }
-        .heatmap-box { text-align: center; font-size: 11px; background: #161b22; padding: 10px; border-radius: 6px; }
-        h2 { color: #00e676; text-transform: uppercase; letter-spacing: 2px; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0b0d11; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; padding: 10px; }
+        .main-container { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+        canvas { border: 2px solid #30363d; background: #000; border-radius: 4px; }
+        .robot-panel { background: #161b22; padding: 15px; border-radius: 8px; width: 280px; border-top: 4px solid #444; }
+        .robot1 { border-color: #00e676; } /* Зеленый */
+        .robot2 { border-color: #2196f3; } /* Синий */
+        .heatmap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .h-box { text-align: center; font-size: 10px; color: #8b949e; }
+        h3 { margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; }
+        .stat-line { font-size: 13px; margin-bottom: 5px; }
     </style>
 </head>
 <body>
 
-    <h2>XAI Robot: Pathfinding Master</h2>
+    <h2 style="color: #00e676; margin: 10px;">Multi-Agent Tensor XAI Engine</h2>
     
-    <div class="container">
-        <canvas id="gameCanvas" width="400" height="400"></canvas>
-        <div class="debug-panel">
-            <div class="stat">
-                <b>Статус:</b> <span id="status">Запуск...</span><br>
-                <b>Шаг:</b> <span id="stepCountDisplay">0</span> | <b>Награда:</b> <span id="lastReward">0</span><br>
-                <b>Координаты:</b> <span id="coords">0, 0</span>
+    <div class="main-container">
+        <!-- Общая игровая арена -->
+        <canvas id="gameCanvas" width="440" height="440"></canvas>
+
+        <!-- Панель Робота 1 -->
+        <div class="robot-panel robot1">
+            <h3>Робот 1 (Зеленый)</h3>
+            <div class="stat-line">Цель: <span id="r1-status">Загрузка</span></div>
+            <div class="stat-line">Груз: <span id="r1-cargo">Нет</span></div>
+            <div class="heatmap-grid">
+                <div class="h-box"><canvas id="r1-mapF" width="100" height="100"></canvas><div>Q: Вперед</div></div>
+                <div class="h-box"><canvas id="r1-mapT" width="100" height="100"></canvas><div>Q: Поворот</div></div>
             </div>
-            <div class="heatmap-container">
-                <div class="heatmap-box">
-                    <canvas id="mapForward" width="100" height="100"></canvas>
-                    <div style="margin-top:5px; color:#00e676">Q: Вперед</div>
-                </div>
-                <div class="heatmap-box">
-                    <canvas id="mapTurn" width="100" height="100"></canvas>
-                    <div style="margin-top:5px; color:#ffeb3b">Q: Поворот</div>
-                </div>
+        </div>
+
+        <!-- Панель Робота 2 -->
+        <div class="robot-panel robot2">
+            <h3>Робот 2 (Синий)</h3>
+            <div class="stat-line">Цель: <span id="r2-status">Загрузка</span></div>
+            <div class="stat-line">Груз: <span id="r2-cargo">Нет</span></div>
+            <div class="heatmap-grid">
+                <div class="h-box"><canvas id="r2-mapF" width="100" height="100"></canvas><div>Q: Вперед</div></div>
+                <div class="h-box"><canvas id="r2-mapT" width="100" height="100"></canvas><div>Q: Поворот</div></div>
             </div>
-            <p style="font-size: 0.8em; color: #8b949e;">Если робот крутится, подождите 10-20 шагов: штраф истории (карта справа) потемнеет и заставит его сдвинуться.</p>
         </div>
     </div>
 
 <script>
-class TensorEngine {
-    constructor(size) {
+/**
+ * УНИВЕРСАЛЬНЫЙ ТЕНЗОРНЫЙ ДВИЖОК АГЕНТА
+ */
+class AgentEngine {
+    constructor(size, color) {
         this.size = size;
-        this.actions = 2;
-        this.gamma = 0.98; // Увеличена значимость будущего
-        this.lr = 0.5;    // Ускорена скорость обучения
-
-        this.weights = tf.variable(tf.randomUniform([size, size, 2, this.actions], 0.01, 0.1));
-        
-        this.hDepth = 100; // Углублена память
-        this.historyBuffer = tf.variable(tf.zeros([this.hDepth, this.actions]));
-        this.historyWeights = tf.variable(tf.fill([this.hDepth, this.actions], -2.5)); // Жесткое подавление циклов
+        this.color = color;
+        this.actions = 2; // 0: Прямо, 1: Поворот
+        this.weights = tf.variable(tf.randomUniform([size, size, 2, this.actions], -0.01, 0.01));
+        this.historyBuffer = tf.variable(tf.zeros([8, this.actions]));
+        this.historyWeights = tf.variable(tf.fill([8, this.actions], -2.2));
+        this.gamma = 0.96;
+        this.lr = 0.3;
     }
 
     predict(y, x, hasLoad) {
@@ -61,9 +69,7 @@ class TensorEngine {
             const spatialQ = this.weights.slice([y, x, hasLoad, 0], [1, 1, 1, this.actions]).reshape([this.actions]);
             const histPenalty = this.historyBuffer.mul(this.historyWeights).sum(0);
             const finalQ = spatialQ.add(histPenalty);
-            
-            // Повышен Epsilon для борьбы с застреванием
-            if (Math.random() < 0.15) return Math.floor(Math.random() * this.actions);
+            if (Math.random() < 0.1) return Math.floor(Math.random() * this.actions);
             return finalQ.argMax().dataSync()[0];
         });
     }
@@ -75,116 +81,121 @@ class TensorEngine {
             const currentQ = this.weights.slice([s.y, s.x, s.hasLoad, a], [1, 1, 1, 1]).dataSync()[0];
             
             const error = target - currentQ;
-            const updateTensor = tf.tensor1d([error * this.lr]);
+            const update = tf.tensor1d([error * this.lr]);
             const indices = tf.tensor2d([[s.y, s.x, s.hasLoad, a]], [1, 4], 'int32');
             
-            const deltaWeights = tf.scatterND(indices, updateTensor, this.weights.shape);
-            this.weights.assign(this.weights.add(deltaWeights));
-
+            this.weights.assign(this.weights.add(tf.scatterND(indices, update, this.weights.shape)));
+            
             const actionOH = tf.oneHot(a, this.actions).cast('float32').reshape([1, this.actions]);
-            const oldHistory = this.historyBuffer.slice([1, 0], [this.hDepth - 1, this.actions]);
-            this.historyBuffer.assign(tf.concat([oldHistory, actionOH], 0));
+            const shifted = this.historyBuffer.slice([1, 0], [7, this.actions]);
+            this.historyBuffer.assign(tf.concat([shifted, actionOH], 0));
         });
     }
 }
 
-const SIZE = 10;
+/**
+ * МИР И СИМУЛЯЦИЯ
+ */
+const SIZE = 11;
 const CELL = 40;
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-let engine;
-let robot = { x: 0, y: 0, dir: 1, hasLoad: 0 }; 
-const obstacles = [[3,3], [3,4], [3,5], [6,6], [6,7], [6,8]];
-let totalSteps = 0;
 
-async function start() {
+// Точки для Робота 1: [10,10] -> [0,0]
+const R1_START = {x: 10, y: 10, target: {x: 0, y: 0}, color: '#00e676'};
+// Точки для Робота 2: [0,10] -> [10,0]
+const R2_START = {x: 0, y: 10, target: {x: 10, y: 0}, color: '#2196f3'};
+
+const agents = [
+    { id: 1, engine: new AgentEngine(SIZE, R1_START.color), pos: {x: 10, y: 10}, dir: 0, hasLoad: 0, config: R1_START },
+    { id: 2, engine: new AgentEngine(SIZE, R2_START.color), pos: {x: 0, y: 10}, dir: 0, hasLoad: 0, config: R2_START }
+];
+
+const obstacles = [[5,2],[5,3],[5,4],[5,5],[5,6],[5,7],[5,8]];
+
+async function main() {
     await tf.setBackend('webgl');
-    engine = new TensorEngine(SIZE);
-    document.getElementById('status').innerText = "В пути...";
-    gameStep();
+    loop();
 }
 
-function drawGame() {
-    ctx.fillStyle = "#0d1117";
-    ctx.fillRect(0, 0, 400, 400);
+function draw() {
+    ctx.fillStyle = "#0d1117"; ctx.fillRect(0,0,440,440);
     ctx.strokeStyle = "#21262d";
-    for(let i=0; i<=SIZE; i++) {
-        ctx.beginPath(); ctx.moveTo(i*CELL, 0); ctx.lineTo(i*CELL, 400); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0, i*CELL); ctx.lineTo(400, i*CELL); ctx.stroke();
+    for(let i=0; i<=SIZE; i++){
+        ctx.beginPath(); ctx.moveTo(i*CELL,0); ctx.lineTo(i*CELL,440); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0,i*CELL); ctx.lineTo(440,i*CELL); ctx.stroke();
     }
+    // Препятствия
     ctx.fillStyle = "#f85149";
-    obstacles.forEach(([ox, oy]) => ctx.fillRect(ox*CELL+4, oy*CELL+4, CELL-8, CELL-8));
-    ctx.globalAlpha = 0.2;
-    ctx.fillStyle = "#39d353"; ctx.fillRect(0, 0, CELL, CELL);
-    ctx.fillStyle = "#e3b341"; ctx.fillRect(9*CELL, 9*CELL, CELL, CELL);
-    ctx.globalAlpha = 1.0;
-    ctx.save();
-    ctx.translate(robot.x*CELL + CELL/2, robot.y*CELL + CELL/2);
-    ctx.rotate(robot.dir * Math.PI/2);
-    ctx.fillStyle = robot.hasLoad ? "#e3b341" : "#39d353";
-    ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(12, 10); ctx.lineTo(-12, 10); ctx.fill();
-    ctx.restore();
-    renderHeatmaps();
+    obstacles.forEach(([x,y]) => ctx.fillRect(x*CELL+4, y*CELL+4, CELL-8, CELL-8));
+
+    // Цели
+    agents.forEach(a => {
+        ctx.globalAlpha = 0.2; ctx.fillStyle = a.config.color;
+        ctx.fillRect(a.config.x*CELL, a.config.y*CELL, CELL, CELL);
+        ctx.fillRect(a.config.target.x*CELL, a.config.target.y*CELL, CELL, CELL);
+        ctx.globalAlpha = 1.0;
+        
+        // Робот
+        ctx.save();
+        ctx.translate(a.pos.x*CELL+20, a.pos.y*CELL+20);
+        ctx.rotate(a.dir * Math.PI/2);
+        ctx.fillStyle = a.hasLoad ? "#ffeb3b" : a.config.color;
+        ctx.beginPath(); ctx.moveTo(0,-12); ctx.lineTo(10,8); ctx.lineTo(-10,8); ctx.fill();
+        ctx.restore();
+    });
+    renderMaps();
 }
 
-async function renderHeatmaps() {
-    for (let a = 0; a < 2; a++) {
-        const data = await tf.tidy(() => {
-            const t = engine.weights.slice([0, 0, robot.hasLoad, a], [SIZE, SIZE, 1, 1]).reshape([SIZE, SIZE]);
-            const min = t.min(); const max = t.max();
-            return t.sub(min).div(max.sub(min).add(0.0001)).dataSync();
-        });
-        const hCtx = document.getElementById(a === 0 ? 'mapForward' : 'mapTurn').getContext('2d');
-        for (let y = 0; y < SIZE; y++) {
-            for (let x = 0; x < SIZE; x++) {
-                const intensity = Math.floor(data[y * SIZE + x] * 255);
-                hCtx.fillStyle = `rgb(0, ${Math.floor(intensity/1.5)}, ${intensity})`;
-                hCtx.fillRect(x * 10, y * 10, 10, 10);
+async function renderMaps() {
+    for(let agent of agents) {
+        for(let a=0; a<2; a++) {
+            const data = await tf.tidy(() => {
+                const t = agent.engine.weights.slice([0,0,agent.hasLoad,a],[SIZE,SIZE,1,1]).reshape([SIZE,SIZE]);
+                return t.sub(t.min()).div(t.max().sub(t.min()).add(0.0001)).dataSync();
+            });
+            const c = document.getElementById(`r${agent.id}-map${a===0?'F':'T'}`);
+            const hCtx = c.getContext('2d');
+            for(let y=0; y<SIZE; y++) for(let x=0; x<SIZE; x++) {
+                const v = Math.floor(data[y*SIZE+x]*255);
+                hCtx.fillStyle = agent.id===1?`rgb(0,${v},${v/2})` : `rgb(0,${v/2},${v})`;
+                hCtx.fillRect(x*9, y*9, 9, 9);
             }
         }
     }
 }
 
-async function gameStep() {
-    const s = { ...robot };
-    const action = engine.predict(robot.y, robot.x, robot.hasLoad);
-    let reward = -0.05; // Крошечный штраф за время
+async function loop() {
+    for(let a of agents) {
+        const s = { ...a.pos, hasLoad: a.hasLoad };
+        const action = a.engine.predict(a.pos.y, a.pos.x, a.hasLoad);
+        let r = -0.1;
 
-    if (action === 0) { // Вперед
-        let nx = robot.x + (robot.dir === 1 ? 1 : robot.dir === 3 ? -1 : 0);
-        let ny = robot.y + (robot.dir === 2 ? 1 : robot.dir === 0 ? -1 : 0);
-        const isObs = obstacles.some(([ox, oy]) => ox === nx && oy === ny);
-        const isWall = nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE;
+        if(action === 0) { // Вперед
+            let nx = a.pos.x + (a.dir===1?1 : a.dir===3?-1:0);
+            let ny = a.pos.y + (a.dir===2?1 : a.dir===0?-1:0);
+            const otherRobot = agents.find(other => other.id !== a.id).pos;
+            const isColl = nx<0||nx>=SIZE||ny<0||ny>=SIZE||obstacles.some(([ox,oy])=>ox===nx&&oy===ny)||(nx===otherRobot.x&&ny===otherRobot.y);
+            
+            if(!isColl) { a.pos.x = nx; a.pos.y = ny; r = 1.2; }
+            else { r = -6.0; }
+        } else { a.dir = (a.dir+1)%4; r = -1.4; }
 
-        if (!isObs && !isWall) {
-            robot.x = nx; robot.y = ny;
-            reward = 1.5; // Большая награда за движение
-        } else {
-            reward = -3.0; // Умеренный штраф за препятствие
+        // Проверка целей
+        const target = a.hasLoad ? a.config : a.config.target;
+        if(a.pos.x === target.x && a.pos.y === target.y) {
+            a.hasLoad = 1 - a.hasLoad; r = 100;
+            document.getElementById(`r${a.id}-cargo`).innerText = a.hasLoad ? "ДА" : "Нет";
+            document.getElementById(`r${a.id}-status`).innerText = a.hasLoad ? "Возврат" : "Загрузка";
         }
-    } else { // Поворот
-        robot.dir = (robot.dir + 1) % 4;
-        reward = -0.5; // Штраф за поворот
-        
-        // Маленький бонус за взгляд в сторону цели (Hints)
-        if (!robot.hasLoad && (robot.dir === 1 || robot.dir === 2)) reward += 0.2;
-        if (robot.hasLoad && (robot.dir === 0 || robot.dir === 3)) reward += 0.2;
-    }
 
-    if (robot.x === 9 && robot.y === 9 && !robot.hasLoad) {
-        robot.hasLoad = 1; reward = 20;
-    } else if (robot.x === 0 && robot.y === 0 && robot.hasLoad) {
-        robot.hasLoad = 0; reward = 20;
+        await a.engine.learn(s, action, r, { ...a.pos, hasLoad: a.hasLoad });
     }
-
-    await engine.learn(s, action, reward, { ...robot });
-    document.getElementById('stepCountDisplay').innerText = ++totalSteps;
-    document.getElementById('lastReward').innerText = reward.toFixed(1);
-    document.getElementById('coords').innerText = `${robot.x}, ${robot.y}`;
-    drawGame();
-    setTimeout(gameStep, 40); 
+    draw();
+    setTimeout(loop, 40);
 }
-start();
+
+main();
 </script>
 </body>
 </html>
