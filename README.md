@@ -1,4 +1,4 @@
-# Multi-Agent Tensor XAI Engine
+# 👾 Multi-Agent Tensor XAI Engine 👾
 
 ## Описание
 
